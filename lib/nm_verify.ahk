@@ -385,10 +385,9 @@ nm_RecoverOrGiveUp(location) {
 ; Prospecting macro came to dig on a lake, and it would fail the moment the UI hue
 ; shifts.
 ;
-; When the bag is at the field's threshold, RECOVER BY CONVERTING instead of
-; resetting. Converting goes to the hive and banks the pollen, which both keeps the
-; load and gets the character unstuck - so the route can then be re-run with nothing
-; lost.
+; It decides whether to LOG the load. The reset itself converts, so the pollen is
+; banked either way - this exists so a full-bag reset is visible in verify.log rather
+; than silent, and so the threshold never becomes an assumption.
 nm_BagFull(margin := 2) {
     global BackpackPercentFiltered, FieldUntilPack
     if !IsSet(BackpackPercentFiltered)
