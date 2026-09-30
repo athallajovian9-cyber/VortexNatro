@@ -33,7 +33,53 @@ global NMV_DIR  := A_ScriptDir . "\..\verify"
 global NMV_LAST := -1
 ; Fraction of sampled pixels that must be saturated red/blue to call it a field.
 ; Tune from the value logged each run rather than guessing.
+; Floor, used until enough samples exist. 2% is the midpoint of the measured
+; gap above, not a guess - and 0 (no reading) never counts as a field.
 global NMV_FLOWER_MIN := 0.02
+; SELF-CALIBRATION
+;   A fixed threshold is a guess, and a wrong one is worse than no check: too low and
+;   it never fires, too high and it triggers resets on a working run. Rather than ask
+;   anyone to measure it, the macro measures ITSELF - every arrival check records the
+;   flower fraction it saw, and the threshold is derived from those observations.
+;
+;   The signal is stark in the case that matters: standing on a field shows substantial
+;   flower mass, while a trolled landing in scenery or water shows almost none. So the
+;   threshold is a fraction of the PEAK ever observed, which adapts to the field
+;   automatically and needs no screenshot, no config, and no tuning.
+global NMV_SAMPLES := A_ScriptDir . "\..erifylower_samples.txt"
+global NMV_CAL_MIN := 3        ; below this many samples, keep the conservative default
+; MEASURED SEPARATION (frames on disk, detector band):
+;   on Sunflower Field ........ 3.83%
+;   on non-field game scenery . 0.49% .. 1.03%
+;   -> a 3.7x gap. 0.5 of the peak lands at ~1.9%, i.e. ~2x the worst
+;      negative and ~half the positive: the middle of the gap.
+global NMV_CAL_FRAC := 0.5     ; threshold = this fraction of the peak observed
+
+nm_RecordSample(frac) {
+    global NMV_SAMPLES
+    SplitPath, NMV_SAMPLES, , dir
+    if !DirExist(dir)
+        FileCreateDir, %dir%
+    FileAppend, %frac%`n, %NMV_SAMPLES%
+}
+
+nm_FlowerThreshold() {
+    global NMV_FLOWER_MIN, NMV_SAMPLES, NMV_CAL_MIN, NMV_CAL_FRAC
+    if !FileExist(NMV_SAMPLES)
+        return NMV_FLOWER_MIN
+    peak := 0, n := 0
+    Loop, Read, %NMV_SAMPLES%
+    {
+        v := A_LoopReadLine + 0
+        if (v > peak)
+            peak := v
+        n += 1
+    }
+    if (n < NMV_CAL_MIN or peak <= 0)
+        return NMV_FLOWER_MIN
+    t := peak * NMV_CAL_FRAC
+    return (t > NMV_FLOWER_MIN) ? t : NMV_FLOWER_MIN
+}
 global NMV_FAILS := 0
 
 ; ---------------------------------------------------------------------
@@ -75,10 +121,12 @@ nm_VerifyArrived(location) {
     if (frac < 0)
         return -1
 
-    onField := frac >= NMV_FLOWER_MIN
+    nm_RecordSample(frac)
+    thr := nm_FlowerThreshold()
+    onField := frac >= thr
     nm_LogVerify(location, (onField ? "on field" : "NOT ON FIELD")
         . " - flower mass " . Round(frac * 100, 2) . "% (threshold "
-        . Round(NMV_FLOWER_MIN * 100, 2) . "%)")
+        . Round(nm_FlowerThreshold() * 100, 2) . "%)")
     global NMV_LAST := onField ? 1 : 0
     return NMV_LAST
 }

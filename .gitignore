@@ -6,3 +6,8 @@ __pycache__/
 *.pyc
 verify.log
 profiles/*.ini
+
+# per-user calibration measurements
+verify/
+verify.log
+flower_samples.txt
