@@ -44,8 +44,9 @@ reason shown**. Of the first two real proposals, one was rejected.
 
 ## Not done — stated plainly
 
-- **The hooks are NOT wired in.** `natro_macro.ahk` is byte-identical to stock Natro
-  (sha256 `0aba1007...`, 23,029 lines, 891,923 bytes). Five one-line insertions into
+- **The verification hooks are NOT wired in.** `natro_macro.ahk` carries exactly one
+  edit — a fallback in `RunWith32()` for the "Couldn't find the 32-bit version of
+  Autohotkey" error — and nothing else. Five one-line insertions into
   `nm_gotoField` / `nm_walkFrom` were attempted by script and produced **four defects in
   four attempts**:
   1. a hook inserted before `nm_createPath`'s **definition**, not a call — dead code

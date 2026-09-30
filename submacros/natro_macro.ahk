@@ -44,7 +44,18 @@ RunWith32() {
 	if (A_PtrSize != 4) {
 		SplitPath A_AhkPath, , &ahkDirectory
 
-		if !FileExist(ahkPath := ahkDirectory "\AutoHotkey32.exe")
+		ahkPath := ahkDirectory "\AutoHotkey32.exe"
+		; FALLBACK (added by the VortexNatro build): the engine directory is only
+		; consulted beside whichever AutoHotkey is running. Launch via the
+		; installed v2 build and that folder holds just AutoHotkey32_UIA.exe /
+		; AutoHotkey64_UIA.exe, so the check failed and the macro refused to start
+		; with "Couldn't find the 32-bit version of Autohotkey in:
+		; C:\Program Files\AutoHotkey\v2\AutoHotkey32.exe". Natro ships the right
+		; engine beside itself, so look there before giving up.
+		if !FileExist(ahkPath)
+			ahkPath := A_ScriptDir "\AutoHotkey32.exe"
+
+		if !FileExist(ahkPath)
 			MsgBox "Couldn't find the 32-bit version of Autohotkey in:`n" ahkPath, "Error", 0x10
 		else
 			ReloadScript(ahkpath)

@@ -22,7 +22,7 @@
 
 | File | Status |
 |---|---|
-| `submacros/natro_macro.ahk` | **byte-identical to stock** (sha256 `0aba1007…`, 23,029 lines). No edits. |
+| `submacros/natro_macro.ahk` | **one edit** — a fallback in `RunWith32()` (see below). Otherwise stock. |
 | `lib/`, `paths/`, `patterns/`, `nm_image_assets/`, `LICENSE.md` | **unchanged** |
 | `lib/nm_verify.ahk` | **ADDED** — verification module, not the Natro Team's work |
 | `tools/ai_advisor.py` | **ADDED** — AI threshold advisor, not the Natro Team's work |
