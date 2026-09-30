@@ -1,119 +1,74 @@
-<!--
-  /\ \ \__ _| |_ _ __ ___     /\/\   __ _  ___ _ __ ___  
- /  \/ / _` | __| '__/ _ \   /    \ / _` |/ __| '__/ _ \ 
-/ /\  / (_| | |_| | | (_) | / /\/\ \ (_| | (__| | | (_) |
-\_\ \/ \__,_|\__|_|  \___/  \/    \/\__,_|\___|_|  \___/                                                    
+> # ⚠️ UNOFFICIAL — MODIFIED COPY OF NATRO MACRO
+>
+> **This is NOT Natro Macro.** It is a **modified copy of v1.1.2** with additions made
+> by someone else, published here as a personal build.
+>
+> * **Not affiliated with, endorsed by, or supported by the Natro Team.**
+> * **Do not report bugs here.** The Natro Team cannot help with a build they did not
+>   make, and this copy has been changed.
+> * **Get the official macro instead:**
+>   <https://github.com/NatroTeam/NatroMacro/releases> · <https://discord.gg/natromacro>
+> * Natro's own README warns: *"Make sure you are only downloading from an official
+>   source!"* — this is **not** one. Use it at your own risk.
+>
+> If you want Natro Macro, use the links above. This repository exists only to document
+> and share the verification layer described below.
 
-Thanks for downloading Natro Macro!
+---
 
-To start the macro, just open 'START.bat'!
+# VortexNatro — unofficial build notes
 
-If you need help or want to discuss, join our Discord server!
+## What is changed vs the official v1.1.2
 
-Feel free to give us a Star on GitHub!
+| File | Status |
+|---|---|
+| `submacros/natro_macro.ahk` | **byte-identical to stock** (sha256 `0aba1007…`, 23,029 lines). No edits. |
+| `lib/`, `paths/`, `patterns/`, `nm_image_assets/`, `LICENSE.md` | **unchanged** |
+| `lib/nm_verify.ahk` | **ADDED** — verification module, not the Natro Team's work |
+| `tools/ai_advisor.py` | **ADDED** — AI threshold advisor, not the Natro Team's work |
+| `README.md` | replaced with this warning. Natro's original is kept as `NATRO_OFFICIAL_README.md` |
 
-IMPORTANT:
-Make sure you are only downloading from an official source!
-The only official sources are:
- - our GitHub page (https://github.com/NatroTeam/NatroMacro)
- - our Discord server (https://discord.gg/natromacro)
+## Why the additions exist
 
->>> IGNORE BELOW THIS LINE <<<
--->
+Neither Natro nor Revolution Macro ever asks *"did the character arrive?"* Natro
+integrates a **measured speed** over time — a closed loop on speed, but **not on
+position**. So a lag spike, a bee knockback, a collision or a hive wedge all produce the
+same silent result: the macro gathers on empty ground for the full duration and reports
+nothing wrong.
 
-<!-- no official site warning -->
-> [!CAUTION]
-> We do **not** have a website. The only official place to download Natro Macro is this repository and [discord.gg/natromacro][discord-link].
+Three checks close that:
 
-<div align="center">
+| check | signal | why it survives reality |
+|---|---|---|
+| **Arrival** | flower mass — saturated red/blue pixels | a stored screenshot cannot work: the game **regenerates a field's flower layout on every server join**, so a reference image reports NOT ON FIELD everywhere but the server it came from |
+| **Progress** | screen frozen 3 readings in a row (~6 s) | Natro's main macro **blocks** on `KeyWait "F14"`, so this is a **timer** that interrupts the wait |
+| **Drift** | the sprinkler's neon-green marker `#00FF33`–`#33FF66` | known colour, proportional correction on **observed position** — holds under any speed change |
 
-<!-- logo banner -->
-<picture>
-  <source width="200px" media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/NatroTeam/.github/main/profile/assets/banners/natro-logo-light.svg"> <!-- light theme (black text) -->
-  <img src="https://raw.githubusercontent.com/NatroTeam/.github/main/profile/assets/banners/natro-logo-dark.svg"> <!-- dark theme (light text) -->
-</picture>
-<br>
+Answers are `1` good, `0` bad, `-1` **cannot tell**. `-1` is never a pass: a check that
+cannot fail is worse than none.
 
-<!-- shields and contents -->
-[![][latest-release-shield]][latest-release-link]
-[![][downloads-shield]][downloads-link]
-[![][discord-shield]][discord-link]
-<br>
-An open-source Bee Swarm Simulator macro written in AutoHotkey!<br>
-</div>
+## The AI advisor
 
+A vision model **proposes** a colour threshold; a verifier **tests the proposal against
+the same frame** before anything is applied; the macro executes it every frame.
 
-<a name="installation"><h2>🛠️ Installation</h2></a>
+**Measured:** asked for a `#17263A` button the model answered `#111111` — wrong on every
+channel — and a region at `y528` in a **513-pixel-tall** image, entirely off-frame.
+Applied blindly it would have shipped a detector that silently never matches. The
+verifier rejected it.
 
-1. Download `Natro_Macro_v#.#.#.zip` from the [latest release][latest-release-link]
-2. Open `Natro_Macro_v#.#.#` and double-click the folder inside
-3. Run `START.bat` and wait for the macro to load
+## Not done
 
+* **The hooks are NOT wired in.** Five scripted insertions produced **four defects in
+  four attempts** (a hook placed before a *definition*; stops in unrelated functions; a
+  duplicate start; an arrival check inside a function whose parameter is `booster`, not
+  `location`). All reverted. This is a **hand-edit job**, not a scripted one.
+* **Nothing has been playtested.**
 
-<a name="community"><h2>🌎 Community</h2></a>
+## Licence
 
-[**Join us on Discord!**][discord-link]
+Natro Macro belongs to the **Natro Team** and is **GPL-3.0** — see `LICENSE.md`,
+unchanged. Including it makes this repository a GPL-3.0 derivative. The added files are
+released under the same terms.
 
-This is where you can connect with the community, access guides and help channels, and download custom patterns, paths, and themes!
-
-Discord is our main platform for troubleshooting and update news!
-
-<a href="https://discord.gg/natromacro">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="http://invidget.switchblade.xyz/natromacro?theme=light"> <!-- light theme -->
-    <img alt="discord-invite-widget" width=500 src="http://invidget.switchblade.xyz/natromacro"> <!-- dark theme -->
-  </picture>
-</a>
-
-
-<a name="contributing"><h2>⌨️ Contributing</h2></a>
-
-Natro Macro is an open-source project. We greatly appreciate all contributions, whether you are helping us fix bugs or suggesting new features. If you want to get started, read our [Contributing Guidelines][contributing-link] first.
-
-- **Bugs**: If you find an issue or run into an error message while using the macro, please create a [bug report][bug-report-link].
-- **Suggestions**: If you have an idea for a feature that you'd like to see in the macro, please submit a [suggestion][suggestion-link].
-- **Code/Development**: If you are interested in developing features for the macro, check out the development repository @ [NatroMacroDev][natromacrodev-link]
-
-For discussions, please join us on [Discord][discord-link] instead!
-
-
-<a name="credits"><h2>💝 Credits</h2></a>
-
-Natro Macro wouldn't be possible without the help and inspiration of many extraordinary individuals.<br>
-We want to show our gratitude to all of you, so please check out our [list of credits][credits-link]!
-
-Thank you all for your hard work and support!
-
-
-<a name="stars"><h2>🌠 Stars</h2></a>
-
-If Natro Macro helped you, let us know by giving it a ⭐ $\color{yellow}{\textsf{Star}}$ on GitHub!<br>
-You can do this by clicking the Star button at the top of the page!
-
-<a href="https://github.com/NatroTeam/NatroMacro/stargazers">
-  <picture>
-    <source media="(prefers-color-scheme: light)" srcset="http://reporoster.com/stars/NatroTeam/NatroMacro"> <!-- light theme -->
-    <img alt="stargazer-widget" src="http://reporoster.com/stars/dark/NatroTeam/NatroMacro"> <!-- dark theme -->
-  </picture>
-</a>
-
-<a name="license"><details><summary><h4>📝 License</h4></summary></a>
-Copyright © [Natro Team][github-profile-link]<br>
-This project is licensed under [GNU GPL v3.0](./LICENSE.md)
-
-</details>
-
-<!-- links -->
-[latest-release-shield]: https://img.shields.io/github/v/release/NatroTeam/NatroMacro?logo=github&logoColor=white&labelColor=black&color=faa125
-[latest-release-link]: https://github.com/NatroTeam/NatroMacro/releases/latest
-[downloads-shield]: https://img.shields.io/github/downloads/NatroTeam/NatroMacro/total?label=downloads&labelColor=black&color=40ca53&logo=data:image/svg%2bxml;base64,PHN2ZwogICB2aWV3Qm94PSIwIDAgMjQgMjQiCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGgKICAgICBmaWxsPSIjZmZmIgogICAgIGQ9Ik0gMTIsMC4yMDk2MTUxNSBBIDExLjc5MDM4NSwxMS43OTAzODUgMCAxIDAgMjMuNzkwMzg1LDEyIDExLjc5MDM4NSwxMS43OTAzODUgMCAwIDAgMTIsMC4yMDk2MTUxNSBaIE0gOS4zMDAwMDE5LDkuOTgzODQ0MiAxMC44MjA5NjIsMTEuNTE2NTk0IFYgNC45MjU3NjkxIGggMi4zNTgwNzYgViAxMS41MTY1OTQgTCAxNC42OTk5OTgsOS45OTU2MzQ2IDE2LjM2MjQ0MiwxMS42NTgwNzkgMTIsMTYuMDIwNTIxIDcuNjI1NzY3MiwxMS42NTgwNzkgWiBNIDE2LjcxNjE1NCwxOS4wNzQyMzEgSCA3LjI4Mzg0NjEgdiAtMi4zNTgwNzcgaCA5LjQzMjMwNzkgeiIKICAgICAvPgo8L3N2Zz4K
-[downloads-link]: https://github.com/NatroTeam/NatroMacro/releases
-[discord-shield]: https://img.shields.io/discord/1012610056921038868?logo=discord&logoColor=white&label=discord&labelColor=black&color=5865f2
-[discord-link]: https://discord.gg/natromacro
-[contributing-link]: https://github.com/NatroTeam/.github/blob/main/CONTRIBUTING.md
-[credits-link]: https://github.com/NatroTeam/.github/blob/main/CREDITS.md
-[bug-report-link]: https://github.com/NatroTeam/NatroMacro/issues/new?assignees=&labels=bug%2Cneeds+triage&projects=&template=bug.yml
-[suggestion-link]: https://github.com/NatroTeam/NatroMacro/issues/new?assignees=&labels=suggestion%2Cneeds+triage&projects=&template=suggestion.yml
-[github-profile-link]: http://github.com/NatroTeam
-[discord-banner-link]: https://invidget.switchblade.xyz/natromacro
-[natromacrodev-link]: https://github.com/NatroTeam/NatroMacroDev
+Revolution Macro is **not** included (compiled, no source, no stated licence).
