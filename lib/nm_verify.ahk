@@ -307,3 +307,51 @@ nm_HexLockCorrect(dryRun := false) {
         . " for " . ms . "ms" . (dryRun ? " (dry run)" : ""))
     return x
 }
+
+; =====================================================================
+;  RECOVERY  -  detection without recovery is only half the job
+; =====================================================================
+; Found by playtest: cancelling the parachute mid-flight lands the character
+; somewhere the route never accounted for. The arrival check DETECTED it and set a
+; status message - and then the macro carried on farming from the wrong square.
+;
+; This does the other half: respawn and re-run the route, a bounded number of times.
+;
+; Deliberately NOT recursive. Re-entering nm_gotoField would re-enter recovery, and a
+; route that always fails would recurse until the stack dies. One reset, one re-run,
+; one re-check per attempt, then give up and let the caller move to another field.
+
+global NMV_RECOVER := Map()          ; location -> attempts spent
+global NMV_MAX_RECOVER := 2
+
+nm_RecoverOrGiveUp(location) {
+    global NMV_RECOVER, NMV_MAX_RECOVER
+
+    tries := NMV_RECOVER.Has(location) ? NMV_RECOVER[location] : 0
+    if (tries >= NMV_MAX_RECOVER) {
+        nm_LogVerify(location, "recovery gave up after " . tries . " attempts")
+        NMV_RECOVER.Delete(location)          ; reset for next time round
+        return false
+    }
+    NMV_RECOVER[location] := tries + 1
+    nm_LogVerify(location, "recovering: attempt " . (tries + 1) . "/" . NMV_MAX_RECOVER)
+
+    ; Respawn at the hive, then walk the field route again. nm_Reset() is Natro's
+    ; own respawn path, so this stays inside its machinery.
+    nm_Reset()
+
+    path := paths["gtf"][StrReplace(location, " ")]
+    nm_createPath(path)
+    KeyWait "F14", "D T5 L"
+    KeyWait "F14", "T120 L"
+    nm_endWalk()
+
+    arrived := nm_VerifyArrived(location)
+    if (arrived = 1) {
+        NMV_RECOVER.Delete(location)          ; success: clear the count
+        return true
+    }
+    if (arrived = -1)
+        return true          ; cannot tell (no reference): do not spiral on unknowns
+    return false
+}

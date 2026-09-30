@@ -20538,11 +20538,22 @@ nm_gotoField(location){
 	nm_endWalk()
 	nm_ProgressWatchStop()
 	; Did we actually arrive? The path process signals F14 regardless of where
-	; the character ended up, so without this a knocked-back run is
-	; indistinguishable from a good one.
-	if (nm_VerifyArrived(location) = 0)
-		nm_setStatus("NOT AT FIELD", "FF6B4A")
-}
+		; the character ended up, so without this a knocked-back run is
+		; indistinguishable from a good one.
+		; RECOVERY, not just a report. Found by playtest: cancelling the parachute
+		; mid-flight lands the character where the route never accounted for, and the
+		; earlier version only printed a status while farming continued from the wrong
+		; square. Detection without recovery is half a job.
+		if (nm_VerifyArrived(location) = 0) {
+			nm_setStatus("NOT AT FIELD", "FF6B4A")
+			if (nm_RecoverOrGiveUp(location)) {
+				nm_setStatus("Recovered - resuming", "1A7F5A")
+			} else {
+				nm_currentFieldDown()
+				return
+			}
+		}
+	}
 nm_walkFrom(field){
 	path := paths["wf"][StrReplace(field, " ")]
 
