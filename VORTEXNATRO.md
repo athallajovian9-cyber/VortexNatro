@@ -42,22 +42,32 @@ answered `#111111` — wrong on every channel — and gave a region at `y528` in
 detector that silently never matches. With the verifier it is **rejected, with the
 reason shown**. Of the first two real proposals, one was rejected.
 
-## Not done — stated plainly
+## Integration status — WIRED IN (and how it was done)
 
-- **The verification hooks are NOT wired in.** `natro_macro.ahk` carries exactly one
-  edit — a fallback in `RunWith32()` for the "Couldn't find the 32-bit version of
-  Autohotkey" error — and nothing else. Five one-line insertions into
-  `nm_gotoField` / `nm_walkFrom` were attempted by script and produced **four defects in
-  four attempts**:
-  1. a hook inserted before `nm_createPath`'s **definition**, not a call — dead code
-  2. stop hooks landing in two **unrelated** functions
-  3. my fix for #2 inserting a **duplicate** start
-  4. an arrival check inside `nm_gotoBooster`, whose parameter is **`booster`**, not
-     `location` — that would have thrown at runtime the first time a booster route ran
+The four hooks are in, placed **by hand** after four scripted attempts produced four
+defects. What worked:
 
-  All reverted. This integration is a **hand-edit job, not a scripted one.**
-- **Nothing has been playtested.** Function-level tests pass (13/13) and the advisor's
-  verifier is proven to reject bad proposals — but no BSS macro here has run in game.
+| function | hooks | arrival check? |
+|---|---|---|
+| `nm_gotoField` | start + stop | **yes** — it goes to a field |
+| `nm_walkFrom` | start + stop | **no** — it goes to the HIVE, so a field signature would test the wrong thing |
+
+Plus one `#Include "nm_verify.ahk"` at line 10597.
+
+**Why that include is not automatic:** Natro writes `#Include "%A_ScriptDir%\..\lib"`,
+and per the AHK docs a `#Include` naming a **directory is a chdir, not a glob** — it
+"changes the working directory used by all subsequent occurrences of #Include". Nothing
+in `lib/` is pulled in automatically. Assuming otherwise would have left the call sites
+undefined at load.
+
+Verified after the edit: one include directive, all three called functions resolve to
+definitions, and both functions have a matched start/stop pair.
+
+## Still not done
+
+**Nothing has been playtested.** Function-level tests pass (13/13) and the advisor's
+verifier is proven to reject bad proposals, but no BMS macro here has run in game.
+
 
 ## Revolution Macro — what was and was not taken
 

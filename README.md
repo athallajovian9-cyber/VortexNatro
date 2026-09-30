@@ -57,13 +57,32 @@ channel — and a region at `y528` in a **513-pixel-tall** image, entirely off-f
 Applied blindly it would have shipped a detector that silently never matches. The
 verifier rejected it.
 
-## Not done
+## Integration status — WIRED IN (and how it was done)
 
-* **The hooks are NOT wired in.** Five scripted insertions produced **four defects in
-  four attempts** (a hook placed before a *definition*; stops in unrelated functions; a
-  duplicate start; an arrival check inside a function whose parameter is `booster`, not
-  `location`). All reverted. This is a **hand-edit job**, not a scripted one.
-* **Nothing has been playtested.**
+The four hooks are in, placed **by hand** after four scripted attempts produced four
+defects. What worked:
+
+| function | hooks | arrival check? |
+|---|---|---|
+| `nm_gotoField` | start + stop | **yes** — it goes to a field |
+| `nm_walkFrom` | start + stop | **no** — it goes to the HIVE, so a field signature would test the wrong thing |
+
+Plus one `#Include "nm_verify.ahk"` at line 10597.
+
+**Why that include is not automatic:** Natro writes `#Include "%A_ScriptDir%\..\lib"`,
+and per the AHK docs a `#Include` naming a **directory is a chdir, not a glob** — it
+"changes the working directory used by all subsequent occurrences of #Include". Nothing
+in `lib/` is pulled in automatically. Assuming otherwise would have left the call sites
+undefined at load.
+
+Verified after the edit: one include directive, all three called functions resolve to
+definitions, and both functions have a matched start/stop pair.
+
+## Still not done
+
+**Nothing has been playtested.** Function-level tests pass (13/13) and the advisor's
+verifier is proven to reject bad proposals, but no BMS macro here has run in game.
+
 
 ## Licence
 

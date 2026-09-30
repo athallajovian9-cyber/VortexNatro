@@ -10589,6 +10589,12 @@ nm_Start(){
 #Include "%A_ScriptDir%\..\lib"
 #Include "nm_OpenMenu.ahk"
 #Include "nm_InventorySearch.ahk"
+; nm_verify.ahk must be named explicitly. The #Include above with a DIRECTORY is a
+; chdir, not a glob - per the AHK docs it "changes the working directory used by all
+; subsequent occurrences of #Include", so nothing in lib/ is pulled in automatically.
+; Without this line the four nm_VerifyArrived / nm_ProgressWatch* call sites added to
+; nm_gotoField and nm_walkFrom would be undefined at load.
+#Include "nm_verify.ahk"
 ;interrupts
 nm_MondoInterrupt() => (utc_min := FormatTime(A_NowUTC, "m"), now := nowUnix(),
 	((MondoBuffCheck = 1) && ((utc_min<14 && (now-LastMondoBuff)>960 && MondoAction="Kill")
@@ -20523,21 +20529,34 @@ nm_gotoField(location){
 
 	nm_setShiftLock(0)
 
+	; Watch for a stuck character for the duration of this walk. The macro
+	; BLOCKS on the KeyWait below, so a timer is the only thing that can notice.
+	nm_ProgressWatchStart()
 	nm_createPath(path)
 	KeyWait "F14", "D T5 L"
 	KeyWait "F14", "T120 L"
 	nm_endWalk()
+	nm_ProgressWatchStop()
+	; Did we actually arrive? The path process signals F14 regardless of where
+	; the character ended up, so without this a knocked-back run is
+	; indistinguishable from a good one.
+	if (nm_VerifyArrived(location) = 0)
+		nm_setStatus("NOT AT FIELD", "FF6B4A")
 }
 nm_walkFrom(field){
 	path := paths["wf"][StrReplace(field, " ")]
 
 	nm_setShiftLock(0)
 
+	; Watch on the way back too. NO arrival check here: this route ends at the
+	; HIVE, not a field, so a field signature would be testing the wrong thing.
+	nm_ProgressWatchStart()
 	nm_createPath(path)
 	KeyWait "F14", "D T5 L"
 	nm_setStatus("Traveling", "Hive")
 	KeyWait "F14", "T120 L"
 	nm_endWalk()
+	nm_ProgressWatchStop()
 }
 nm_gotoPlanter(location, waitEnd := 1){
 	global HiveConfirmed:=0
