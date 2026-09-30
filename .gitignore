@@ -1,0 +1,8 @@
+# Never publish credentials: Natro stores Discord tokens, account names and
+# per-user state under settings/.
+settings/
+# Build artifacts and generated profiles
+__pycache__/
+*.pyc
+verify.log
+profiles/*.ini
