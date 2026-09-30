@@ -338,7 +338,18 @@ nm_RecoverOrGiveUp(location) {
 
     ; Respawn at the hive, then walk the field route again. nm_Reset() is Natro's
     ; own respawn path, so this stays inside its machinery.
-    nm_Reset()
+    ;
+    ; BAG-FULL GUARD: a reset while the bag is full loses the load, so convert
+    ; first and only then move. Converting banks the pollen AND reaches the hive,
+    ; which unsticks the character just as a reset would - with nothing lost.
+    if (nm_BagFull()) {
+        global BackpackPercentFiltered
+        nm_LogVerify(location, "bag at " . BackpackPercentFiltered
+            . "% - converting INSTEAD of resetting so the pollen is kept")
+        nm_convert()
+    } else {
+        nm_Reset()
+    }
 
     path := paths["gtf"][StrReplace(location, " ")]
     nm_createPath(path)
@@ -354,4 +365,27 @@ nm_RecoverOrGiveUp(location) {
     if (arrived = -1)
         return true          ; cannot tell (no reference): do not spiral on unknowns
     return false
+}
+
+; ---------------------------------------------------------------------
+;  BAG-FULL GUARD  (user rule)
+; ---------------------------------------------------------------------
+; "don't reset if the pollen is full - if reset all pollen lost."
+;
+; So the recovery must not blindly respawn. It reads Natro's OWN bag level
+; (BackpackPercentFiltered, maintained by its convert scanning) rather than testing
+; for a red pixel: a hardcoded single-pixel colour test is exactly how the
+; Prospecting macro came to dig on a lake, and it would fail the moment the UI hue
+; shifts.
+;
+; When the bag is at the field's threshold, RECOVER BY CONVERTING instead of
+; resetting. Converting goes to the hive and banks the pollen, which both keeps the
+; load and gets the character unstuck - so the route can then be re-run with nothing
+; lost.
+nm_BagFull(margin := 2) {
+    global BackpackPercentFiltered, FieldUntilPack
+    if !IsSet(BackpackPercentFiltered)
+        return false                  ; no reading yet: never assume full
+    limit := IsSet(FieldUntilPack) ? FieldUntilPack : 95
+    return (BackpackPercentFiltered >= limit - margin)
 }
