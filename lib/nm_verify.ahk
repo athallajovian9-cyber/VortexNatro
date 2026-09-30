@@ -339,24 +339,30 @@ nm_RecoverOrGiveUp(location) {
     ; Respawn at the hive, then walk the field route again. nm_Reset() is Natro's
     ; own respawn path, so this stays inside its machinery.
     ;
-    ; BAG-FULL GUARD (user rule: a reset with a full bag must not lose the pollen).
+    ; BAG-FULL GUARD (user rule: never reset with a full bag - the pollen is lost).
     ;
-    ; Checked before writing this: nm_Reset() ALREADY converts. Its signature is
-    ; nm_Reset(checkAll:=1, wait:=2000, convert:=1, force:=0) and line 11233 runs
-    ; '(convert=1) && nm_convert()'. The load is therefore banked as part of the
-    ; reset.
+    ; Confirmed from the game: "you lose all the pollen currently stored in your
+    ; backpack when you reset your character". Players who reset on purpose rely on
+    ; INSTANT CONVERSION; without it a reset discards the bag.
     ;
-    ; The first version of this guard called nm_convert() INSTEAD of resetting and
-    ; was wrong twice: redundant, and it skipped the respawn that actually unsticks a
-    ; stranded character. What matters is that convert cannot be accidentally off, so
-    ; it is forced on here, and the bag level is logged so the behaviour is
-    ; verifiable rather than assumed.
+    ; Whether Natro's reset path banks the load first could not be established with
+    ; certainty by reading - nm_Reset(..., convert:=1) calls nm_convert(), but the
+    ; order relative to the respawn is not provable from the source alone. So this
+    ; does not depend on that answer: when the bag is full it simply does NOT reset.
+    ; The route is re-run from wherever the character stands. Nothing can be lost
+    ; because nothing respawns, and a failed re-run gives up rather than risk it.
     if (nm_BagFull()) {
         global BackpackPercentFiltered
         nm_LogVerify(location, "bag at " . BackpackPercentFiltered
-            . "% - resetting WITH convert, so the load is banked rather than lost")
+            . "% - NOT resetting (pollen would be lost); re-running the route in place")
+        path := paths["gtf"][StrReplace(location, " ")]
+        nm_createPath(path)
+        KeyWait "F14", "D T5 L"
+        KeyWait "F14", "T120 L"
+        nm_endWalk()
+        return (nm_VerifyArrived(location) = 1)
     }
-    nm_Reset(1, 2000, 1)      ; checkAll, wait, convert=1 - explicit, not defaulted
+
 
     path := paths["gtf"][StrReplace(location, " ")]
     nm_createPath(path)
