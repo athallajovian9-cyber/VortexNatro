@@ -339,17 +339,24 @@ nm_RecoverOrGiveUp(location) {
     ; Respawn at the hive, then walk the field route again. nm_Reset() is Natro's
     ; own respawn path, so this stays inside its machinery.
     ;
-    ; BAG-FULL GUARD: a reset while the bag is full loses the load, so convert
-    ; first and only then move. Converting banks the pollen AND reaches the hive,
-    ; which unsticks the character just as a reset would - with nothing lost.
+    ; BAG-FULL GUARD (user rule: a reset with a full bag must not lose the pollen).
+    ;
+    ; Checked before writing this: nm_Reset() ALREADY converts. Its signature is
+    ; nm_Reset(checkAll:=1, wait:=2000, convert:=1, force:=0) and line 11233 runs
+    ; '(convert=1) && nm_convert()'. The load is therefore banked as part of the
+    ; reset.
+    ;
+    ; The first version of this guard called nm_convert() INSTEAD of resetting and
+    ; was wrong twice: redundant, and it skipped the respawn that actually unsticks a
+    ; stranded character. What matters is that convert cannot be accidentally off, so
+    ; it is forced on here, and the bag level is logged so the behaviour is
+    ; verifiable rather than assumed.
     if (nm_BagFull()) {
         global BackpackPercentFiltered
         nm_LogVerify(location, "bag at " . BackpackPercentFiltered
-            . "% - converting INSTEAD of resetting so the pollen is kept")
-        nm_convert()
-    } else {
-        nm_Reset()
+            . "% - resetting WITH convert, so the load is banked rather than lost")
     }
+    nm_Reset(1, 2000, 1)      ; checkAll, wait, convert=1 - explicit, not defaulted
 
     path := paths["gtf"][StrReplace(location, " ")]
     nm_createPath(path)
