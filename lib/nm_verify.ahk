@@ -46,7 +46,7 @@ global NMV_FLOWER_MIN := 0.02
 ;   flower mass, while a trolled landing in scenery or water shows almost none. So the
 ;   threshold is a fraction of the PEAK ever observed, which adapts to the field
 ;   automatically and needs no screenshot, no config, and no tuning.
-global NMV_SAMPLES := A_ScriptDir . "\..erifylower_samples.txt"
+global NMV_SAMPLES := NMV_DIR . "\flower_samples.txt"
 global NMV_CAL_MIN := 3        ; below this many samples, keep the conservative default
 ; MEASURED SEPARATION (frames on disk, detector band):
 ;   on Sunflower Field ........ 3.83%
@@ -57,10 +57,15 @@ global NMV_CAL_FRAC := 0.5     ; threshold = this fraction of the peak observed
 
 nm_RecordSample(frac) {
     global NMV_SAMPLES
-    SplitPath, NMV_SAMPLES, , dir
-    if !DirExist(dir)
-        FileCreateDir, %dir%
-    FileAppend, %frac%`n, %NMV_SAMPLES%
+    ; AHK v2 FUNCTION form. The v1 command form ("SplitPath, path, , dir",
+    ; "FileAppend, ..", "DirCreate, ..") is a load-time syntax error in v2, and
+    ; because natro_macro.ahk #Includes this file, one bad line here stops the
+    ; macro from starting at all - not just this function.
+    nmvName := "", nmvDir := ""
+    SplitPath(NMV_SAMPLES, &nmvName, &nmvDir)
+    if !DirExist(nmvDir)
+        DirCreate(nmvDir)
+    FileAppend(frac "`n", NMV_SAMPLES)
 }
 
 nm_FlowerThreshold() {
@@ -68,7 +73,10 @@ nm_FlowerThreshold() {
     if !FileExist(NMV_SAMPLES)
         return NMV_FLOWER_MIN
     peak := 0, n := 0
-    Loop, Read, %NMV_SAMPLES%
+    ; v2 command form. "%NMV_SAMPLES%" (v1) is not a variable reference in v2 -
+    ; it would look for a file literally named `%NMV_SAMPLES%` and silently
+    ; find nothing, so the learned threshold would never load.
+    Loop Read, NMV_SAMPLES
     {
         v := A_LoopReadLine + 0
         if (v > peak)
@@ -295,9 +303,23 @@ global HEXLOCK_BAND  := 20        ; deadband +/- around centre (620..660)
 global HEXLOCK_MS_PER_PX := 4     ; correction duration per pixel of offset
 global HEXLOCK_WIN   := { x1: 440, y1: 260, x2: 840, y2: 460 }
 
-; Pure: mean X of neon-green pixels in the capture, or -1 if none.
+; Pure: mean X of marker-coloured pixels in the capture, or -1 if none.
 ; Kept separate so it can be tested without the game running.
+;
+; Two colour rules live here and the profile decides which one runs:
+;   * no profile  - the built-in neon-green window (#00FF33 .. #33FF66),
+;                   unchanged, so an uncalibrated macro behaves as it always did
+;   * with profile - the advisor's measured rgb + tolerance, per channel
 nm_MarkerX(buf, gw, gh, x1, y1, x2, y2) {
+    global NMV_PROFILE
+
+    useProf := NMV_PROFILE.Has("rgb")
+    if useProf {
+        rgb := NMV_PROFILE["rgb"]
+        r0 := rgb[1], g0 := rgb[2], b0 := rgb[3]
+        tol := NMV_PROFILE["tolerance"]
+    }
+
     sumX := 0
     n := 0
     yy := 0
@@ -309,8 +331,11 @@ nm_MarkerX(buf, gw, gh, x1, y1, x2, y2) {
             b := NumGet(buf, off,     "UChar")
             g := NumGet(buf, off + 1, "UChar")
             r := NumGet(buf, off + 2, "UChar")
-            ; #00FF33 .. #33FF66 : strong green, little red, some blue
-            if (g > 200 && r < 100 && b < 140) {
+            if useProf
+                hit := (Abs(r - r0) <= tol) && (Abs(g - g0) <= tol) && (Abs(b - b0) <= tol)
+            else
+                hit := (g > 200 && r < 100 && b < 140)   ; #00FF33 .. #33FF66
+            if hit {
                 sumX += x1 + (x2 - x1) * xx / gw
                 n += 1
             }
@@ -321,20 +346,156 @@ nm_MarkerX(buf, gw, gh, x1, y1, x2, y2) {
     return (n > 0) ? Round(sumX / n) : -1
 }
 
+; =====================================================================
+;  PROFILE  -  the AI advisor's output, made readable
+; =====================================================================
+; tools/ai_advisor.py proposes a colour threshold from a screenshot, verifies
+; the proposal against that same frame, and writes profiles/<name>.ini.
+; Nothing read those files until this section existed: the detector used
+; constants compiled into this file, so a calibrated threshold had no effect
+; at all. The advisor's whole premise - "AI proposes, verifier tests, the
+; macro executes" - was missing its last link.
+;
+; The profile is OPTIONAL and is picked up by FILE PRESENCE alone. No file, or
+; an unreadable one, falls back to the built-in constants, so the macro behaves
+; exactly as it did before until someone deliberately calibrates it. There is
+; no setting to enable and no config to edit.
+;
+;     profiles\marker.ini
+;         [detect]
+;         rgb=0,255,51
+;         tolerance=40
+;         x1=440  y1=260  x2=840  y2=460      ; optional; omitted = built-in window
+;
+; Anything malformed is ignored rather than fatal: a bad profile must never
+; stop the macro from starting, and must never silently become a detector that
+; cannot match anything.
+
+global NMV_PROFILE       := Map()     ; "rgb" / "tolerance" / "x1".."y2"
+global NMV_PROFILE_FILE  := ""
+global NMV_PROFILE_NAME  := "marker"  ; which file under profiles\ to look for
+global NMV_PROFILE_TRIED := false
+
+nm_ProfileReset() {
+    global NMV_PROFILE, NMV_PROFILE_FILE, NMV_PROFILE_TRIED
+    NMV_PROFILE := Map()
+    NMV_PROFILE_FILE := ""
+    NMV_PROFILE_TRIED := false
+}
+
+; Read profiles\<name>.ini. Returns true only if a usable rgb+tolerance was
+; found; every failure path returns false so the caller uses the built-ins.
+nm_ProfileLoad(name) {
+    global NMV_PROFILE, NMV_PROFILE_FILE
+    NMV_PROFILE := Map()
+    NMV_PROFILE_FILE := ""
+    if (name = "")
+        return false
+    path := A_ScriptDir . "\..\profiles\" . name . ".ini"
+    if !FileExist(path)
+        return false
+
+    rgbTxt := IniRead(path, "detect", "rgb", "")
+    tolTxt := IniRead(path, "detect", "tolerance", "")
+    if (rgbTxt = "" || tolTxt = "")
+        return false
+
+    parts := StrSplit(rgbTxt, ",")
+    if (parts.Length != 3)
+        return false
+    rgb := []
+    for p in parts {
+        try
+            v := Integer(Trim(p))
+        catch
+            return false
+        if (v < 0 || v > 255)
+            return false
+        rgb.Push(v)
+    }
+    try
+        tol := Integer(Trim(tolTxt))
+    catch
+        return false
+    if (tol < 0 || tol > 255)
+        return false
+
+    NMV_PROFILE["rgb"] := rgb
+    NMV_PROFILE["tolerance"] := tol
+
+    ; The region is all-or-nothing: a partial rectangle would silently test the
+    ; wrong part of the screen, which is worse than not overriding it.
+    x1 := IniRead(path, "detect", "x1", "")
+    y1 := IniRead(path, "detect", "y1", "")
+    x2 := IniRead(path, "detect", "x2", "")
+    y2 := IniRead(path, "detect", "y2", "")
+    if (x1 != "" && y1 != "" && x2 != "" && y2 != "") {
+        try {
+            rx1 := Integer(Trim(x1)), ry1 := Integer(Trim(y1))
+            rx2 := Integer(Trim(x2)), ry2 := Integer(Trim(y2))
+            if (rx1 < rx2 && ry1 < ry2 && rx1 >= 0 && ry1 >= 0) {
+                NMV_PROFILE["x1"] := rx1
+                NMV_PROFILE["y1"] := ry1
+                NMV_PROFILE["x2"] := rx2
+                NMV_PROFILE["y2"] := ry2
+            }
+        }
+    }
+
+    NMV_PROFILE_FILE := path
+    return true
+}
+
+; Load once, on first use. A profile dropped in place is picked up with no
+; config change - and the disk is not touched again after the first call.
+nm_ProfileEnsure() {
+    global NMV_PROFILE_TRIED, NMV_PROFILE_NAME
+    if (NMV_PROFILE_TRIED)
+        return NMV_PROFILE.Has("rgb")
+    NMV_PROFILE_TRIED := true
+    return nm_ProfileLoad(NMV_PROFILE_NAME)
+}
+
+; One line for the verify log, so a run says which detector was in force.
+nm_ProfileDescribe() {
+    global NMV_PROFILE, NMV_PROFILE_FILE
+    if !NMV_PROFILE.Has("rgb")
+        return "built-in threshold (no profile)"
+    rgb := NMV_PROFILE["rgb"]
+    s := "profile " . NMV_PROFILE_FILE . " rgb="
+        . rgb[1] . "," . rgb[2] . "," . rgb[3]
+        . " tol=" . NMV_PROFILE["tolerance"]
+    if NMV_PROFILE.Has("x1")
+        s .= " region=" . NMV_PROFILE["x1"] . "," . NMV_PROFILE["y1"]
+             . "-" . NMV_PROFILE["x2"] . "," . NMV_PROFILE["y2"]
+    return s
+}
+
 ; Read the real screen and correct. Returns the measured X, or -1.
 nm_HexLockCorrect(dryRun := false) {
-    global HEXLOCK_CX, HEXLOCK_BAND, HEXLOCK_MS_PER_PX, HEXLOCK_WIN
+    global HEXLOCK_CX, HEXLOCK_BAND, HEXLOCK_MS_PER_PX, HEXLOCK_WIN, NMV_PROFILE
 
     GetRobloxClientPos()
     if (windowWidth = 0)
         return -1
 
+    nm_ProfileEnsure()
+
     w := HEXLOCK_WIN
+    ; A calibrated region wins over the compiled-in one, but only when the
+    ; profile carries a complete rectangle (nm_ProfileLoad checks that).
+    if (NMV_PROFILE.Has("x1")) {
+        w := { x1: NMV_PROFILE["x1"], y1: NMV_PROFILE["y1"]
+             , x2: NMV_PROFILE["x2"], y2: NMV_PROFILE["y2"] }
+    }
     buf := nm_RegionSig(windowX + w.x1, windowY + w.y1
                       , w.x2 - w.x1, w.y2 - w.y1, 64, 32)
     x := nm_MarkerX(buf, 64, 32, w.x1, w.y1, w.x2, w.y2)
     if (x < 0) {
-        nm_LogVerify("hexlock", "no sprinkler marker in the scan window")
+        ; Name the detector that failed, so a miss says WHICH threshold was in
+        ; force - the first thing `ai_advisor.py diagnose` needs to know.
+        nm_LogVerify("hexlock", "no sprinkler marker in the scan window - using "
+            . nm_ProfileDescribe())
         return -1
     }
 

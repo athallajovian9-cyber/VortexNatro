@@ -49,39 +49,51 @@ cannot fail is worse than none.
 
 ## The AI advisor
 
-A vision model **proposes** a colour threshold; a verifier **tests the proposal against
-the same frame** before anything is applied; the macro executes it every frame.
+A vision model **names the colour**; a verifier **tests the proposal against the same
+frame**; the tolerance actually written is **measured from that frame**, not taken from
+the model. The macro executes it every frame.
 
-**Measured:** asked for a `#17263A` button the model answered `#111111` — wrong on every
-channel — and a region at `y528` in a **513-pixel-tall** image, entirely off-frame.
-Applied blindly it would have shipped a detector that silently never matches. The
-verifier rejected it.
+**Measured, and why nothing numeric is trusted.** Asked for a `#17263A` button the
+model answered `#111111` — wrong on every channel — and gave a region at `y528` in a
+**513-pixel-tall** image, entirely off-frame. On a later frame it named the right colour
+and put the region 1000 pixels away from it. Neither is usable as-is, and rejecting the
+whole proposal would throw away a correct colour — so the colour is kept and the region
+is **measured** (mask, bounding box, mean colour). That run recovered the marker's box
+exactly and wrote a tolerance of 9 with a margin of 32 levels.
 
-## Integration status — WIRED IN (and how it was done)
+`--also frame2.png` requires the result to hold on a second frame: a threshold fitted to
+one screenshot is a threshold that fails on the next one.
 
-The four hooks are in, placed **by hand** after four scripted attempts produced four
-defects. What worked:
+`profiles/*.ini` is read by `lib/nm_verify.ahk` by its presence. Delete the file and the
+built-in constants apply again. See `VORTEXNATRO.md` for the two load-time defects this
+work also fixed.
 
-| function | hooks | arrival check? |
-|---|---|---|
-| `nm_gotoField` | start + stop | **yes** — it goes to a field |
-| `nm_walkFrom` | start + stop | **no** — it goes to the HIVE, so a field signature would test the wrong thing |
+## Integration status
 
-Plus one `#Include "nm_verify.ahk"` at line 10597.
+| what | state |
+|---|---|
+| arrival + progress hooks in `nm_gotoField` / `nm_walkFrom` | **wired in**, 4 call sites |
+| `#Include "nm_verify.ahk"` at line 10597 | **in** |
+| profile reader + profile-driven colour/tolerance/region | **in**, picks up by file presence |
+| `nm_HexLockCorrect` (drift) | **no caller in the macro yet** — written, calibrated, dry-run capable; nothing calls it from a run |
 
-**Why that include is not automatic:** Natro writes `#Include "%A_ScriptDir%\..\lib"`,
+**Because it is included, a syntax error in `lib/nm_verify.ahk` stops the whole macro.**
+That is not hypothetical: four AHK v1 command lines in this file meant the macro could
+not start at all until they were fixed, and function-level tests could not see it. See
+`VORTEXNATRO.md`.
+
+**Why the include is not automatic:** Natro writes `#Include "%A_ScriptDir%\..\lib"`,
 and per the AHK docs a `#Include` naming a **directory is a chdir, not a glob** — it
 "changes the working directory used by all subsequent occurrences of #Include". Nothing
 in `lib/` is pulled in automatically. Assuming otherwise would have left the call sites
 undefined at load.
 
-Verified after the edit: one include directive, all three called functions resolve to
-definitions, and both functions have a matched start/stop pair.
-
 ## Still not done
 
-**Nothing has been playtested.** Function-level tests pass (13/13) and the advisor's
-verifier is proven to reject bad proposals, but no BMS macro here has run in game.
+**Nothing has been playtested.** The advisor's tests pass (59/59) and the AHK library
+loads cleanly, but no BMS macro here has run in game. The first thing a playtest should
+do is call `nm_HexLockCorrect(true)` - dry run, sends no input - and read `verify.log` to
+see what the marker detector measures on a real field.
 
 
 ## Licence
