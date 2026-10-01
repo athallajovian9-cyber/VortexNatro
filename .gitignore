@@ -11,3 +11,9 @@ profiles/*.ini
 verify/
 verify.log
 flower_samples.txt
+
+# test scratch
+tools/_test_tmp/
+tools/_test_nm_verify_results.txt
+profiles/_contract_marker.ini
+profiles/_bad_marker.ini

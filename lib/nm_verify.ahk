@@ -94,6 +94,20 @@ global NMV_FAILS := 0
 ;  Arrival: is the character standing on the expected field?
 ; ---------------------------------------------------------------------
 nm_VerifyArrived(location) {
+    ; These four MUST be declared. They are set by GetRobloxClientPos() in
+    ; lib\Roblox.ahk, which declares them global inside itself - that does NOT
+    ; make them super-globals, so without this line each reference here creates
+    ; an EMPTY LOCAL of the same name. Measured: IsSet(windowWidth) returned 0
+    ; and the engine warned "this variable appears to never be assigned a value:
+    ; local windowWidth".
+    ;
+    ; The macro sets #Warn VarUnset, Off, so nothing announced it, and the
+    ; geometry below was computed from empty values: x1 := windowX + Round(
+    ; windowWidth * 0.20) evaluated to 0, and this check measured a zero-sized
+    ; region at the screen origin instead of the Roblox client area. A check
+    ; that cannot look at the thing it is checking is worse than no check.
+    global windowX, windowY, windowWidth, windowHeight
+
     ; FLOWER MASS, NOT A REFERENCE IMAGE.
     ;
     ; The obvious design - screenshot the field, match it later - is broken by
@@ -146,6 +160,7 @@ nm_VerifyArrived(location) {
 ;  at the end of a ten-minute gather costs the whole run.
 ; ---------------------------------------------------------------------
 nm_VerifyMoving(changeTol := 2) {
+    global windowX, windowY, windowWidth, windowHeight   ; see nm_VerifyArrived
     GetRobloxClientPos()
     if (windowWidth = 0)
         return -1
@@ -474,6 +489,7 @@ nm_ProfileDescribe() {
 ; Read the real screen and correct. Returns the measured X, or -1.
 nm_HexLockCorrect(dryRun := false) {
     global HEXLOCK_CX, HEXLOCK_BAND, HEXLOCK_MS_PER_PX, HEXLOCK_WIN, NMV_PROFILE
+    global windowX, windowY, windowWidth, windowHeight   ; see nm_VerifyArrived
 
     GetRobloxClientPos()
     if (windowWidth = 0)

@@ -75,6 +75,7 @@ work also fixed.
 | arrival + progress hooks in `nm_gotoField` / `nm_walkFrom` | **wired in**, 4 call sites |
 | `#Include "nm_verify.ahk"` at line 10597 | **in** |
 | profile reader + profile-driven colour/tolerance/region | **in**, picks up by file presence |
+| screen globals declared in the verify functions | **fixed** — the arrival check now reads the real client area (defect 3) |
 | `nm_HexLockCorrect` (drift) | **no caller in the macro yet** — written, calibrated, dry-run capable; nothing calls it from a run |
 
 **Because it is included, a syntax error in `lib/nm_verify.ahk` stops the whole macro.**
@@ -88,12 +89,30 @@ and per the AHK docs a `#Include` naming a **directory is a chdir, not a glob** 
 in `lib/` is pulled in automatically. Assuming otherwise would have left the call sites
 undefined at load.
 
+## Tests
+
+```
+tools/test_ai_advisor.py    63 assertions   the advisor: verifier, measured tolerance,
+                                            region recovery, endpoint chain (real server)
+tools/test_nm_verify.ahk    19 assertions   the AHK detector: built-in vs profile rule,
+                                            the writer/reader profile contract, bad
+                                            profiles, and zero engine warnings allowed
+```
+
+The AHK harness stubs the eight host functions the library calls and mirrors the macro's
+super-globals, so it compiles the library standalone. Run it with the bundled engine:
+
+```
+submacros\AutoHotkey64.exe tools\test_nm_verify.ahk
+```
+
 ## Still not done
 
-**Nothing has been playtested.** The advisor's tests pass (59/59) and the AHK library
-loads cleanly, but no BMS macro here has run in game. The first thing a playtest should
-do is call `nm_HexLockCorrect(true)` - dry run, sends no input - and read `verify.log` to
-see what the marker detector measures on a real field.
+**Nothing has been playtested.** The advisor's tests pass (63/63), the AHK harness passes
+(19/19, no warnings), and both vision endpoints answer live — but no BMS macro here has
+run in game. The first thing a playtest should do is call `nm_HexLockCorrect(true)` — dry
+run, sends no input — and read `verify.log` to see what the marker detector measures on a
+real field. Then `nm_VerifyArrived` on a real field, now that it can actually see one.
 
 
 ## Licence

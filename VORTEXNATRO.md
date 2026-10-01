@@ -83,27 +83,57 @@ Before this, nothing read those files. The detector used constants compiled into
 `nm_verify.ahk`, so a calibrated threshold had no effect at all — the advisor's
 "AI proposes, verifier tests, the macro executes" claim was missing its last link.
 
-## Two load-time defects found and fixed
+## Three defects found and fixed
 
-Both were invisible to function-level tests, and both stopped the macro dead.
+All three were invisible to function-level tests. The first stopped the macro dead;
+the other two were silent, which is worse.
 
-**`lib/nm_verify.ahk` did not compile.** Four lines used AHK **v1** command syntax —
+**1. `lib/nm_verify.ahk` did not compile.** Four lines used AHK **v1** command syntax —
 `SplitPath, x, , dir`, `FileCreateDir, %dir%`, `FileAppend, %frac%`n, %path%`,
 `Loop, Read, %path%` — in a v2 script. AHK reports
 `Function calls require a space or "(" ` at the first one. Because `natro_macro.ahk`
 `#Include`s this file at line 10597, **one bad line in a library stopped the whole
-macro from starting**, and no function-level test can see that: they extract
-functions and run them in isolation, never compiling the file they came from.
+macro from starting**, and no function-level test can see that: they extract functions
+and run them in isolation, never compiling the file they came from.
 
-**The sample-file path contained two control bytes.** `"..\verify\flower_samples.txt"`
+**2. The sample-file path contained two control bytes.** `"..\verify\flower_samples.txt"`
 had been written through a string that turned `\v` and `\f` into a vertical tab and a
-form feed. AHK accepts that silently, so the check passed and the file was simply
-never found: the self-calibration could never read or write a single sample. The path
-now derives from `NMV_DIR`.
+form feed. AHK accepts that silently, so the check passed and the file was simply never
+found: the self-calibration could never read or write a single sample. The path now
+derives from `NMV_DIR`.
 
-Verified by loading the file with the bundled engine (`AutoHotkey64.exe`, reported
-version 2.0.12) and checking for an error line — not by grepping, and not by
-compiling, which hangs on a warning dialog.
+**3. The arrival check could not see the screen.** `nm_VerifyArrived`, `nm_VerifyMoving`
+and `nm_HexLockCorrect` read `windowX`, `windowY`, `windowWidth` and `windowHeight`
+without declaring them global. Those are set by `GetRobloxClientPos()` in `lib/Roblox.ahk`,
+whose `global` declaration is **function-local — it does not make them super-globals**.
+So every reference inside the verify functions created an *empty local* of the same name.
+
+Measured: `IsSet(windowWidth)` returned `0`, and the engine warned
+`This variable appears to never be assigned a value. Specifically: local windowWidth`.
+`natro_macro.ahk` sets `#Warn VarUnset, Off`, so **nothing announced it**. The geometry
+below that line — `x1 := windowX + Round(windowWidth * 0.20)` — evaluated to `0`, so the
+check measured a zero-sized region at the screen origin instead of the Roblox client
+area. The arrival check has never tested the thing it claims to test, and its `1 / 0 / -1`
+contract means it returned a number that looked like an answer.
+
+Fixed with explicit `global` declarations in all three functions. The distinction that
+makes this easy to miss: `paths` *is* fine, because `natro_macro.ahk` declares it at the
+top level (`global paths := Map()`, line 334), which does make it a super-global.
+`windowX` and friends are not declared anywhere at the top level.
+
+**How these were found, and the method error worth recording.** `Ahk2Exe` reports
+syntax errors but *hangs* on a script that parses and then raises a load-time warning —
+warnings default to a modal message box. Worse, an earlier check in this work reported
+"loads clean" off a **pipeline exit code** (which was `head`'s, not the engine's) plus
+empty output — and empty output is equally what a hang produces. The correct check, now
+used by `tools/test_nm_verify.ahk`:
+
+```ahk
+#Warn All, StdOut        ; warnings become readable output instead of a modal box
+```
+
+with the engine run directly, never through a pipe, and **any warning treated as a
+failure**. That harness is what surfaced defect 3: 19 assertions, zero warnings allowed.
 
 ## Integration status
 

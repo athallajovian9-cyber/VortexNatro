@@ -366,6 +366,21 @@ check("and a genuinely empty body still says that",
 
 srv.shutdown()
 
+# ------------------------------------------------------------------ the contract
+rule("the cross-language contract fixture")
+# Written here with the REAL writer so tools/test_nm_verify.ahk reads exactly the
+# bytes this tool produces - a profile format the writer emits and the reader
+# cannot parse would leave the calibration silently inert.
+fixture = A.PROFILES / "_contract_marker.ini"
+A.write_profile(fixture, "the contract fixture", "synthetic.png", (200, 10, 240), 12,
+                (100, 50, 140, 90), "written by the writer the tool actually uses",
+                "target isolates at tolerance 12", ["synthetic.png"])
+check("the fixture for the AHK reader was written", fixture.exists(), fixture)
+fx = fixture.read_text(encoding="utf-8")
+check("it carries the colour the AHK test expects", "rgb=200,10,240" in fx)
+check("and the tolerance", "tolerance=12" in fx)
+check("and the region", "x1=100" in fx and "y2=90" in fx)
+
 print("")
 print("  RESULT  passes=" + str(passed) + "  fails=" + str(failed))
 sys.exit(1 if failed else 0)
